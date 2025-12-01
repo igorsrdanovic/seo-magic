@@ -13,19 +13,17 @@ A web-based SEO auditing tool similar to Screaming Frog SEO Spider. Crawls websi
 
 ## Tech Stack
 
-**Backend:**
+**Backend (Implemented):**
 - Python 3.9+ (3.9, 3.10, 3.11, 3.12 all supported)
-- FastAPI
+- FastAPI with async/await
 - SQLAlchemy (async) + SQLite
-- httpx
+- httpx (async HTTP client)
 - selectolax (fast HTML parsing)
+- Optional: Playwright for JS rendering
 
-**Frontend:**
-- React 18
-- Vite
-- TanStack Query & Table
-- Tailwind CSS
-- shadcn/ui
+**Frontend (Not Yet Implemented):**
+- Planned: React 18 + Vite + TanStack Query/Table
+- Current: Use REST API directly or via Swagger UI at `/docs`
 
 ## Installation
 
@@ -53,22 +51,39 @@ pip install -e .
 
 **Note:** See [INSTALL.md](INSTALL.md) for detailed installation instructions and troubleshooting.
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
 ## Usage
 
-1. Start the backend server (default: http://localhost:8000)
-2. Start the frontend dev server (default: http://localhost:5173)
-3. Create a new crawl with a start URL
-4. Configure crawl settings (depth, concurrency, JS rendering, etc.)
-5. Start the crawl and monitor progress
-6. Analyze results and export reports
+The tool currently provides a REST API (frontend not yet implemented). You can use it via:
+
+### Option 1: Interactive API Docs (Easiest)
+Open http://localhost:8000/docs in your browser and use the interactive Swagger UI.
+
+### Option 2: Command Line (curl)
+```bash
+# Create a crawl
+curl -X POST http://localhost:8000/api/crawls/ \
+  -H "Content-Type: application/json" \
+  -d '{"start_url": "https://example.com", "config": {"max_urls": 20}}'
+
+# Start the crawl
+curl -X POST http://localhost:8000/api/crawls/1/start
+
+# Check status
+curl http://localhost:8000/api/crawls/1
+
+# Get URLs
+curl http://localhost:8000/api/crawls/1/urls/
+
+# Export results
+curl http://localhost:8000/api/crawls/1/urls/export/csv > urls.csv
+```
+
+### Option 3: Python Script
+```bash
+python test_crawl.py
+```
+
+**See [QUICKSTART.md](QUICKSTART.md) for detailed examples and [USAGE.md](USAGE.md) for comprehensive API documentation.**
 
 ## Configuration
 
