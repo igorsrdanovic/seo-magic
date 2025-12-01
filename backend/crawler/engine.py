@@ -43,6 +43,9 @@ class CrawlEngine:
         # Semaphore for concurrency control
         self.semaphore = asyncio.Semaphore(config.max_concurrent_requests)
 
+        # Lock for database flush operations to prevent concurrent flushes
+        self.flush_lock = asyncio.Lock()
+
         # Stats
         self.urls_discovered = 0
         self.urls_crawled = 0
@@ -147,158 +150,180 @@ class CrawlEngine:
             if self.config.request_delay_ms > 0:
                 await asyncio.sleep(self.config.request_delay_ms / 1000)
 
-            # Fetch
-            result = await self.fetcher.fetch(url)
+            try:
+                # Fetch
+                result = await self.fetcher.fetch(url)
 
-            # Create URL record
-            url_record = URL(
-                crawl_id=self.crawl.id,
-                address=url,
-                address_encoded=result.final_url,
-                content_type=result.content_type,
-                status_code=result.status_code,
-                status=self._status_text(result.status_code),
-                crawl_depth=depth,
-                folder_depth=calculate_folder_depth(url),
-                crawled_at=datetime.utcnow(),
-                response_time=result.response_time,
-                size_bytes=result.size_bytes,
-            )
+                # Create URL record
+                url_record = URL(
+                    crawl_id=self.crawl.id,
+                    address=url,
+                    address_encoded=result.final_url,
+                    content_type=result.content_type,
+                    status_code=result.status_code,
+                    status=self._status_text(result.status_code),
+                    crawl_depth=depth,
+                    folder_depth=calculate_folder_depth(url),
+                    crawled_at=datetime.utcnow(),
+                    response_time=result.response_time,
+                    size_bytes=result.size_bytes,
+                )
 
-            # Store X-Robots-Tag if present
-            if "x-robots-tag" in result.headers:
-                url_record.x_robots_tag = result.headers["x-robots-tag"]
+                # Store X-Robots-Tag if present
+                if "x-robots-tag" in result.headers:
+                    url_record.x_robots_tag = result.headers["x-robots-tag"]
 
-            # Handle redirects
-            if result.redirect_chain:
-                final_hop = result.redirect_chain[-1]
-                url_record.redirect_uri = result.final_url
-                url_record.redirect_type = final_hop.redirect_type
-                url_record.redirect_chain_count = len(result.redirect_chain)
+                # Handle redirects
+                redirect_chain_records = []
+                if result.redirect_chain:
+                    final_hop = result.redirect_chain[-1]
+                    url_record.redirect_uri = result.final_url
+                    url_record.redirect_type = final_hop.redirect_type
+                    url_record.redirect_chain_count = len(result.redirect_chain)
 
-                # Store redirect chain details
-                for hop_num, hop in enumerate(result.redirect_chain):
-                    chain_record = RedirectChain(
-                        crawl_id=self.crawl.id,
-                        initial_url_id=None,  # Will update after URL is saved
-                        hop_number=hop_num,
-                        url=hop.url,
-                        status_code=hop.status_code,
-                        redirect_type=hop.redirect_type,
+                    # Prepare redirect chain details (will add after URL is saved)
+                    for hop_num, hop in enumerate(result.redirect_chain):
+                        chain_record = RedirectChain(
+                            crawl_id=self.crawl.id,
+                            initial_url_id=None,  # Will set after URL is saved
+                            hop_number=hop_num,
+                            url=hop.url,
+                            status_code=hop.status_code,
+                            redirect_type=hop.redirect_type,
+                        )
+                        redirect_chain_records.append(chain_record)
+
+                # Parse HTML content
+                if result.html and result.status_code == 200:
+                    parsed = self.parser.parse(result.html, url)
+
+                    url_record.html_hash = parsed.html_hash
+                    url_record.content_hash = parsed.content_hash
+                    url_record.word_count = parsed.word_count
+                    url_record.text_ratio = parsed.text_ratio
+
+                    url_record.title_1 = parsed.title_1
+                    url_record.title_1_length = len(parsed.title_1) if parsed.title_1 else None
+                    url_record.title_2 = parsed.title_2
+
+                    url_record.meta_description_1 = parsed.meta_description_1
+                    url_record.meta_description_1_length = (
+                        len(parsed.meta_description_1) if parsed.meta_description_1 else None
                     )
+                    url_record.meta_description_2 = parsed.meta_description_2
+
+                    url_record.meta_keywords_1 = parsed.meta_keywords_1
+                    url_record.meta_robots_1 = parsed.meta_robots
+                    url_record.canonical_link_element = parsed.canonical
+
+                    url_record.h1_1 = parsed.h1_1
+                    url_record.h1_1_length = len(parsed.h1_1) if parsed.h1_1 else None
+                    url_record.h1_2 = parsed.h1_2
+                    url_record.h2_1 = parsed.h2_1
+                    url_record.h2_1_length = len(parsed.h2_1) if parsed.h2_1 else None
+                    url_record.h2_2 = parsed.h2_2
+
+                    if self.config.store_raw_html:
+                        url_record.raw_html = result.html
+
+                # Determine indexability
+                url_record.indexability, url_record.indexability_status = self._determine_indexability(url_record)
+
+                # Save URL record first (use lock to prevent concurrent flushes)
+                async with self.flush_lock:
+                    self.db.add(url_record)
+                    await self.db.flush()  # Get ID without committing
+
+                # Store URL ID for link creation
+                self.url_id_map[url] = url_record.id
+
+                # Now add redirect chain records with the URL ID
+                for chain_record in redirect_chain_records:
+                    chain_record.initial_url_id = url_record.id
                     self.db.add(chain_record)
 
-            # Parse HTML content
-            if result.html and result.status_code == 200:
-                parsed = self.parser.parse(result.html, url)
+                # Extract and process links (only if HTML was parsed successfully)
+                if result.html and result.status_code == 200:
+                    parsed = self.parser.parse(result.html, url)
 
-                url_record.html_hash = parsed.html_hash
-                url_record.content_hash = parsed.content_hash
-                url_record.word_count = parsed.word_count
-                url_record.text_ratio = parsed.text_ratio
+                    outlinks_count = 0
+                    for link in parsed.links:
+                        if should_skip_url(link.href):
+                            continue
 
-                url_record.title_1 = parsed.title_1
-                url_record.title_1_length = len(parsed.title_1) if parsed.title_1 else None
-                url_record.title_2 = parsed.title_2
+                        normalized_href = normalize_url(link.href)
+                        is_internal = is_same_domain(normalized_href, self.start_domain, self.config.stay_in_subdomain)
 
-                url_record.meta_description_1 = parsed.meta_description_1
-                url_record.meta_description_1_length = (
-                    len(parsed.meta_description_1) if parsed.meta_description_1 else None
-                )
-                url_record.meta_description_2 = parsed.meta_description_2
+                        # Create link record
+                        link_record = Link(
+                            crawl_id=self.crawl.id,
+                            source_url_id=url_record.id,
+                            target_url_id=self.url_id_map.get(normalized_href),  # May be None
+                            target_address=normalized_href,
+                            anchor_text=link.anchor_text,
+                            link_type=link.link_type,
+                            is_internal=is_internal,
+                            is_follow="nofollow" not in (link.rel or "").lower(),
+                            rel_attributes=link.rel,
+                            link_position=link.position,
+                        )
+                        self.db.add(link_record)
+                        outlinks_count += 1
 
-                url_record.meta_keywords_1 = parsed.meta_keywords_1
-                url_record.meta_robots_1 = parsed.meta_robots
-                url_record.canonical_link_element = parsed.canonical
+                        # Queue internal links for crawling
+                        if is_internal and normalized_href not in self.seen_urls:
+                            self.seen_urls.add(normalized_href)
+                            self.queue.append((normalized_href, depth + 1))
+                            self.urls_discovered += 1
 
-                url_record.h1_1 = parsed.h1_1
-                url_record.h1_1_length = len(parsed.h1_1) if parsed.h1_1 else None
-                url_record.h1_2 = parsed.h1_2
-                url_record.h2_1 = parsed.h2_1
-                url_record.h2_1_length = len(parsed.h2_1) if parsed.h2_1 else None
-                url_record.h2_2 = parsed.h2_2
+                    url_record.outlinks_count = outlinks_count
 
-                if self.config.store_raw_html:
-                    url_record.raw_html = result.html
+                    # Process images
+                    from ..models.crawl import Image
 
-            # Determine indexability
-            url_record.indexability, url_record.indexability_status = self._determine_indexability(url_record)
+                    for img in parsed.images:
+                        image_record = Image(
+                            crawl_id=self.crawl.id,
+                            url_id=url_record.id,
+                            src=img.src,
+                            alt_text=img.alt,
+                            alt_text_length=len(img.alt) if img.alt else None,
+                            has_width_attr=img.width is not None,
+                            has_height_attr=img.height is not None,
+                            html_width=int(img.width) if img.width and img.width.isdigit() else None,
+                            html_height=int(img.height) if img.height and img.height.isdigit() else None,
+                        )
+                        self.db.add(image_record)
 
-            # Save URL record first
-            self.db.add(url_record)
-            await self.db.flush()  # Get ID without committing
+                await self.db.commit()
 
-            # Store URL ID for link creation
-            self.url_id_map[url] = url_record.id
+                if result.status_code == 200:
+                    self.urls_crawled += 1
+                else:
+                    self.urls_failed += 1
 
-            # Extract and process links (only if HTML was parsed successfully)
-            if result.html and result.status_code == 200:
-                parsed = self.parser.parse(result.html, url)
+                return {
+                    "event": "url_crawled",
+                    "url": url,
+                    "status_code": result.status_code,
+                    "depth": depth,
+                    "progress": self.urls_crawled,
+                    "total_discovered": self.urls_discovered,
+                }
 
-                outlinks_count = 0
-                for link in parsed.links:
-                    if should_skip_url(link.href):
-                        continue
-
-                    normalized_href = normalize_url(link.href)
-                    is_internal = is_same_domain(normalized_href, self.start_domain, self.config.stay_in_subdomain)
-
-                    # Create link record
-                    link_record = Link(
-                        crawl_id=self.crawl.id,
-                        source_url_id=url_record.id,
-                        target_url_id=self.url_id_map.get(normalized_href),  # May be None
-                        target_address=normalized_href,
-                        anchor_text=link.anchor_text,
-                        link_type=link.link_type,
-                        is_internal=is_internal,
-                        is_follow="nofollow" not in (link.rel or "").lower(),
-                        rel_attributes=link.rel,
-                        link_position=link.position,
-                    )
-                    self.db.add(link_record)
-                    outlinks_count += 1
-
-                    # Queue internal links for crawling
-                    if is_internal and normalized_href not in self.seen_urls:
-                        self.seen_urls.add(normalized_href)
-                        self.queue.append((normalized_href, depth + 1))
-                        self.urls_discovered += 1
-
-                url_record.outlinks_count = outlinks_count
-
-                # Process images
-                from ..models.crawl import Image
-
-                for img in parsed.images:
-                    image_record = Image(
-                        crawl_id=self.crawl.id,
-                        url_id=url_record.id,
-                        src=img.src,
-                        alt_text=img.alt,
-                        alt_text_length=len(img.alt) if img.alt else None,
-                        has_width_attr=img.width is not None,
-                        has_height_attr=img.height is not None,
-                        html_width=int(img.width) if img.width and img.width.isdigit() else None,
-                        html_height=int(img.height) if img.height and img.height.isdigit() else None,
-                    )
-                    self.db.add(image_record)
-
-            await self.db.commit()
-
-            if result.status_code == 200:
-                self.urls_crawled += 1
-            else:
+            except Exception as e:
+                # Rollback the session on any error
+                await self.db.rollback()
                 self.urls_failed += 1
-
-            return {
-                "event": "url_crawled",
-                "url": url,
-                "status_code": result.status_code,
-                "depth": depth,
-                "progress": self.urls_crawled,
-                "total_discovered": self.urls_discovered,
-            }
+                print(f"Task error: {e}")
+                return {
+                    "event": "url_failed",
+                    "url": url,
+                    "error": str(e),
+                    "depth": depth,
+                    "progress": self.urls_crawled,
+                    "total_discovered": self.urls_discovered,
+                }
 
     def _status_text(self, code: int) -> str:
         """Convert status code to human-readable text"""
