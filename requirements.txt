@@ -1,0 +1,36 @@
+# SEO Spider - Core Dependencies
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Database
+sqlalchemy>=2.0.25
+aiosqlite>=0.19.0
+
+# HTTP Client
+httpx>=0.26.0
+
+# HTML Parsing
+selectolax>=0.3.17
+lxml>=5.1.0
+
+# URL Handling
+tldextract>=5.1.1
+
+# Data Validation
+pydantic>=2.5.3
+
+# File Handling
+python-multipart>=0.0.6
+aiofiles>=23.2.1
+
+# Optional: JavaScript Rendering (comment out if not needed)
+# playwright>=1.41.0
+
+# Optional: Advanced Duplicate Detection (comment out if not needed)
+# xxhash>=3.4.1
+# datasketch>=1.6.4
+
+# Optional: Image Processing (comment out if not needed)
+# Pillow>=10.2.0

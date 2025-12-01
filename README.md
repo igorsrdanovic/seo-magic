@@ -29,25 +29,29 @@ A web-based SEO auditing tool similar to Screaming Frog SEO Spider. Crawls websi
 
 ## Installation
 
-### Backend
+### Quick Start (Recommended)
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 1. Clone or download the repository
+cd seo-magic
 
-# Install dependencies
-pip install -e .
+# 2. Install dependencies
+pip install -r requirements.txt
 
-# Install Playwright browsers
-playwright install chromium
-
-# Run migrations
-alembic upgrade head
-
-# Start server
-uvicorn backend.main:app --reload
+# 3. Start the server
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+That's it! The database will be created automatically on first run.
+
+### Alternative: Using pip install
+
+```bash
+# If you prefer editable install
+pip install -e .
+```
+
+**Note:** See [INSTALL.md](INSTALL.md) for detailed installation instructions and troubleshooting.
 
 ### Frontend
 

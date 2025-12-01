@@ -12,23 +12,20 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "sqlalchemy>=2.0.25",
     "aiosqlite>=0.19.0",
-    "playwright>=1.41.0",
     "httpx>=0.26.0",
     "selectolax>=0.3.17",
     "lxml>=5.1.0",
-    "robotexclusionrulesparser>=1.7.1",
     "tldextract>=5.1.1",
-    "xxhash>=3.4.1",
-    "datasketch>=1.6.4",
-    "Pillow>=10.2.0",
     "pydantic>=2.5.3",
     "python-multipart>=0.0.6",
     "aiofiles>=23.2.1",
 ]
 
-[tool.setuptools.packages.find]
-include = ["backend*"]
-exclude = ["frontend*", "tests*", "alembic*"]
+[tool.setuptools]
+packages = ["backend", "backend.models", "backend.crawler", "backend.analyzers", "backend.api", "backend.services"]
+
+[tool.setuptools.package-data]
+backend = ["py.typed"]
 
 [project.optional-dependencies]
 dev = [
