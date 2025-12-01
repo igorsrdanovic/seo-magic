@@ -52,6 +52,14 @@ async def diagnose_site(url: str):
             for i, hop in enumerate(result.redirect_chain):
                 print(f"      {i+1}. {hop.status_code} -> {hop.url}")
 
+            # Check if domain changed due to redirect
+            start_domain = parsed.netloc
+            final_domain = urlparse(result.final_url).netloc
+            if start_domain != final_domain:
+                print(f"\n   ⚠️  DOMAIN CHANGED: {start_domain} → {final_domain}")
+                print(f"      The crawler will use '{final_domain}' as the base domain")
+                print(f"      This is automatic - you don't need to change anything!")
+
         # 3. Parse HTML and extract links
         if result.html and result.status_code == 200:
             print("\n3️⃣  Analyzing HTML content...")

@@ -64,8 +64,31 @@ class CrawlEngine:
             robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
             await self.robots_checker.fetch(robots_url, self.fetcher)
 
+        # Fetch the start URL to resolve redirects and determine the actual domain
+        # This is important because many sites redirect http -> https or non-www -> www
+        try:
+            # Quick HEAD request just to follow redirects
+            import httpx
+            async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+                response = await client.head(self.crawl.start_url)
+                final_url = str(response.url)
+
+                if final_url != self.crawl.start_url:
+                    # Start URL redirected, use the final domain
+                    final_parsed = urlparse(final_url)
+                    original_domain = self.start_domain
+                    self.start_domain = final_parsed.netloc
+                    print(f"Domain resolution: {original_domain} -> {self.start_domain}")
+                    # Use the final URL as the actual start URL
+                    normalized = normalize_url(final_url)
+                else:
+                    normalized = normalize_url(self.crawl.start_url)
+        except Exception as e:
+            print(f"Warning: Could not resolve redirects for start URL: {e}")
+            # Fall back to original URL
+            normalized = normalize_url(self.crawl.start_url)
+
         # Add start URL to queue
-        normalized = normalize_url(self.crawl.start_url)
         self.queue.append((normalized, 0))
         self.seen_urls.add(normalized)
         self.urls_discovered = 1
