@@ -175,7 +175,7 @@ docker run -p 8000:8000 seo-spider
 
 If you encounter any issues:
 
-1. **Check Python version**: `python --version` (should be 3.11+)
+1. **Check Python version**: `python --version` (should be 3.9 or higher)
 2. **Upgrade pip**: `pip install --upgrade pip`
 3. **Install in clean environment**: Create a new virtual environment
 4. **Check permissions**: Ensure you have write access to the directory
