@@ -1,4 +1,5 @@
 """URL data endpoints"""
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -15,19 +16,19 @@ class URLResponse(BaseModel):
 
     id: int
     address: str
-    status_code: int | None
-    status: str | None
-    indexability: str | None
-    indexability_status: str | None
-    title_1: str | None
-    title_1_length: int | None
-    meta_description_1: str | None
-    h1_1: str | None
-    word_count: int | None
+    status_code: Optional[int]
+    status: Optional[str]
+    indexability: Optional[str]
+    indexability_status: Optional[str]
+    title_1: Optional[str]
+    title_1_length: Optional[int]
+    meta_description_1: Optional[str]
+    h1_1: Optional[str]
+    word_count: Optional[int]
     crawl_depth: int
     inlinks_count: int
     outlinks_count: int
-    response_time: float | None
+    response_time: Optional[float]
 
     class Config:
         from_attributes = True
@@ -38,9 +39,9 @@ async def list_urls(
     crawl_id: int,
     skip: int = 0,
     limit: int = 100,
-    status_code: int | None = None,
-    indexability: str | None = None,
-    content_type: str | None = None,
+    status_code: Optional[int] = None,
+    indexability: Optional[str] = None,
+    content_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """List URLs with filtering"""

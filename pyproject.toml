@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "seo-spider"
 version = "1.0.0"
 description = "Web-based SEO auditing tool similar to Screaming Frog"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",

@@ -1,4 +1,5 @@
 """Crawl management endpoints"""
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,8 +33,8 @@ class CrawlResponse(BaseModel):
     urls_crawled: int
     urls_failed: int
     created_at: str
-    started_at: str | None = None
-    completed_at: str | None = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
     class Config:
         from_attributes = True

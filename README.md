@@ -14,10 +14,10 @@ A web-based SEO auditing tool similar to Screaming Frog SEO Spider. Crawls websi
 ## Tech Stack
 
 **Backend:**
-- Python 3.11+
+- Python 3.9+ (3.9, 3.10, 3.11, 3.12 all supported)
 - FastAPI
 - SQLAlchemy (async) + SQLite
-- Playwright + httpx
+- httpx
 - selectolax (fast HTML parsing)
 
 **Frontend:**

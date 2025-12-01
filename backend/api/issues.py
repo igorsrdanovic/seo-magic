@@ -1,4 +1,5 @@
 """Issue reporting endpoints"""
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -20,8 +21,8 @@ class IssueResponse(BaseModel):
     category: str
     issue_type: str
     severity: str
-    description: str | None
-    current_value: str | None
+    description: Optional[str]
+    current_value: Optional[str]
 
     class Config:
         from_attributes = True
@@ -30,8 +31,8 @@ class IssueResponse(BaseModel):
 @router.get("/")
 async def list_issues(
     crawl_id: int,
-    category: str | None = None,
-    severity: str | None = None,
+    category: Optional[str] = None,
+    severity: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
