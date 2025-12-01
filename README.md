@@ -100,6 +100,27 @@ python test_crawl.py
 
 **See [QUICKSTART.md](QUICKSTART.md) for detailed examples and [USAGE.md](USAGE.md) for comprehensive API documentation.**
 
+## Troubleshooting
+
+### Crawler found very few links
+
+If your crawl discovers fewer links than expected, use the diagnostic tool:
+
+```bash
+python diagnose_crawl.py https://your-site.com
+```
+
+This will check:
+- robots.txt restrictions
+- Whether the site requires JavaScript rendering
+- What links are actually in the HTML
+- JavaScript frameworks detected
+
+**Common solutions:**
+- **JavaScript-heavy sites**: Enable JS rendering with `{"config": {"render_javascript": true}}`
+- **Different subdomains**: Set `{"config": {"stay_in_subdomain": false}}`
+- **Large sites**: Increase limits with `{"config": {"max_urls": 10000, "max_depth": 20}}`
+
 ## Configuration
 
 Crawl configuration options:
