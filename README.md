@@ -21,9 +21,10 @@ A web-based SEO auditing tool similar to Screaming Frog SEO Spider. Crawls websi
 - selectolax (fast HTML parsing)
 - Optional: Playwright for JS rendering
 
-**Frontend (Not Yet Implemented):**
-- Planned: React 18 + Vite + TanStack Query/Table
-- Current: Use REST API directly or via Swagger UI at `/docs`
+**Frontend (Implemented):**
+- React 18 + Vite
+- TanStack Query for data fetching
+- React Router for navigation
 
 ## Installation
 
@@ -53,12 +54,26 @@ pip install -e .
 
 ## Usage
 
-The tool currently provides a REST API (frontend not yet implemented). You can use it via:
+### Option 1: Web Interface (Recommended)
 
-### Option 1: Interactive API Docs (Easiest)
+**Start the backend:**
+```bash
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Start the frontend** (in a new terminal):
+```bash
+cd frontend
+npm install  # First time only
+npm run dev
+```
+
+Then open http://localhost:5173 in your browser to use the web interface.
+
+### Option 2: Interactive API Docs
 Open http://localhost:8000/docs in your browser and use the interactive Swagger UI.
 
-### Option 2: Command Line (curl)
+### Option 3: Command Line (curl)
 ```bash
 # Create a crawl
 curl -X POST http://localhost:8000/api/crawls/ \
@@ -78,7 +93,7 @@ curl http://localhost:8000/api/crawls/1/urls/
 curl http://localhost:8000/api/crawls/1/urls/export/csv > urls.csv
 ```
 
-### Option 3: Python Script
+### Option 4: Python Script
 ```bash
 python test_crawl.py
 ```

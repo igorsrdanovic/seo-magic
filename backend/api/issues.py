@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from ..database import get_db
 from ..models.crawl import Issue, URL, Crawl, Image
 from ..config import DEFAULT_THRESHOLDS
-from ..analyzers import titles, meta, headings, images
+from ..analyzers import titles, meta, headings, images, links, canonicals, redirects
 
 router = APIRouter(prefix="/api/crawls/{crawl_id}/issues", tags=["issues"])
 
@@ -140,6 +140,23 @@ async def analyze_crawl(crawl_id: int, background_tasks: BackgroundTasks, db: As
             # Find duplicate H1s
             dup_h1_issues = headings.find_duplicate_h1s(urls, crawl_id)
             for issue in dup_h1_issues:
+                session.add(issue)
+
+            await session.commit()
+
+            # Run link analysis (needs full database context)
+            link_issues = await links.analyze_links(session, crawl_id, thresholds)
+            for issue in link_issues:
+                session.add(issue)
+
+            # Run canonical analysis
+            canonical_issues = await canonicals.analyze_canonicals(session, crawl_id)
+            for issue in canonical_issues:
+                session.add(issue)
+
+            # Run redirect analysis
+            redirect_issues = await redirects.analyze_redirects(session, crawl_id)
+            for issue in redirect_issues:
                 session.add(issue)
 
             await session.commit()
