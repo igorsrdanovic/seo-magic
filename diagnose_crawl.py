@@ -15,25 +15,30 @@ async def diagnose_site(url: str):
     print(f"🔍 Diagnosing: {url}\n")
     print("=" * 80)
 
+    config = CrawlConfig()
+
     # 1. Check robots.txt
     print("\n1️⃣  Checking robots.txt...")
-    config = CrawlConfig()
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+
     robots_checker = RobotsChecker(config.user_agent_for_robots)
+    fetcher = Fetcher(config)
+    await fetcher.initialize()
 
     try:
-        await robots_checker.load_robots(url)
+        await robots_checker.fetch(robots_url, fetcher)
         if robots_checker.can_fetch(url):
             print("   ✅ robots.txt allows crawling")
         else:
             print("   ❌ robots.txt BLOCKS this URL")
             print(f"   User-agent: {config.user_agent_for_robots}")
     except Exception as e:
-        print(f"   ⚠️  Could not load robots.txt: {e}")
+        print(f"   ⚠️  Could not check robots.txt: {e}")
 
     # 2. Fetch the page (without JS)
     print("\n2️⃣  Fetching page (without JavaScript)...")
-    fetcher = Fetcher(config)
-    await fetcher.initialize()
 
     try:
         result = await fetcher.fetch(url)
@@ -79,8 +84,35 @@ async def diagnose_site(url: str):
                         domains[domain] += 1
 
                 print("\n   🌐 Links by domain:")
-                for domain, count in domains.most_common(5):
-                    print(f"      {domain}: {count} links")
+                start_domain = urlparse(url).netloc
+                internal_count = 0
+                external_count = 0
+
+                for domain, count in domains.most_common(10):
+                    # Check if this is internal or external
+                    from backend.crawler.url_utils import is_same_domain
+                    is_internal = is_same_domain(f"https://{domain}", url, strict_subdomain=False)
+
+                    marker = "✅ INTERNAL" if is_internal else "⚠️  EXTERNAL"
+                    print(f"      {domain}: {count} links ({marker})")
+
+                    if is_internal:
+                        internal_count += count
+                    else:
+                        external_count += count
+
+                print(f"\n   📊 Summary:")
+                print(f"      Internal links (will be crawled): {internal_count}")
+                print(f"      External links (will be stored but NOT crawled): {external_count}")
+
+                if external_count > internal_count:
+                    print(f"\n   ⚠️  ISSUE DETECTED: Most links are EXTERNAL!")
+                    print(f"      The site has {external_count} external vs {internal_count} internal links")
+                    print(f"      The crawler only follows internal links by design")
+                    print(f"\n      💡 This is normal if:")
+                    print(f"         - Site links to partner/related sites")
+                    print(f"         - Site uses different domains for different sections")
+                    print(f"         - Landing page that redirects to main site")
             else:
                 print("\n   ⚠️  NO LINKS FOUND!")
                 print("\n   💡 Possible reasons:")
@@ -113,24 +145,34 @@ async def diagnose_site(url: str):
         print(f"   ❌ Error fetching page: {e}")
 
     finally:
-        await fetcher.cleanup()
+        await fetcher.close()
 
     # 4. Configuration recommendations
     print("\n" + "=" * 80)
     print("\n📋 RECOMMENDATIONS:\n")
 
-    print("1. If the site has few/no links found:")
+    print("1. If MOST LINKS ARE EXTERNAL (different domain):")
+    print("   ℹ️  The crawler is working correctly!")
+    print("   ℹ️  SEO crawlers only crawl within a single domain by design")
+    print("   ℹ️  External links are stored in the database but not crawled")
+    print()
+    print("   If you need to crawl the other domain:")
+    print("   → Create a separate crawl for that domain")
+    print('     {"start_url": "https://other-domain.com"}')
+    print()
+    print("2. If the site has few/no links found:")
     print("   → Enable JavaScript rendering:")
     print('     {"config": {"render_javascript": true}}')
+    print("   → Requires: pip install playwright && playwright install chromium")
     print()
-    print("2. If you want to crawl www AND non-www:")
+    print("3. If you want to crawl www AND non-www versions:")
     print('   {"config": {"stay_in_subdomain": false}}')
     print()
-    print("3. If robots.txt is blocking:")
+    print("4. If robots.txt is blocking:")
     print('   {"config": {"respect_robots_txt": false}}')
     print("   (Only do this if you have permission!)")
     print()
-    print("4. For large sites, increase limits:")
+    print("5. For large sites, increase limits:")
     print('   {"config": {"max_urls": 10000, "max_depth": 20}}')
 
     print("\n" + "=" * 80)
