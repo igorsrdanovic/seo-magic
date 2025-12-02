@@ -182,7 +182,7 @@ async def analyze_crawled_urls_not_in_sitemap(
 
     for url in crawled_urls:
         # Only check indexable 200 pages
-        if url.status_code == 200 and url.indexable:
+        if url.status_code == 200 and url.indexability == "Indexable":
             if url.address not in sitemap_urls:
                 issues.append(
                     Issue(
@@ -237,7 +237,7 @@ async def analyze_sitemap_non_indexable(
 
     for sitemap_url in sitemap_urls:
         url_record = crawled_by_address.get(sitemap_url)
-        if url_record and not url_record.indexable:
+        if url_record and url_record.indexability != "Indexable":
             issues.append(
                 Issue(
                     crawl_id=crawl_id,

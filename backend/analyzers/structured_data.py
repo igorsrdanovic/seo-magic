@@ -120,7 +120,7 @@ async def analyze_missing_structured_data(db: AsyncSession, crawl_id: int) -> li
         .where(
             URL.crawl_id == crawl_id,
             URL.status_code == 200,
-            URL.indexable == True,
+            URL.indexability == "Indexable",
             URL.word_count > 300,  # Only content pages
             ~URL.id.in_(
                 select(StructuredData.url_id).where(StructuredData.crawl_id == crawl_id)

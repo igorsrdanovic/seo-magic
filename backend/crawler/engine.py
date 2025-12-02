@@ -318,6 +318,41 @@ class CrawlEngine:
                         )
                         self.db.add(image_record)
 
+                    # Process hreflangs
+                    from ..models.crawl import Hreflang
+
+                    for hreflang in parsed.hreflangs:
+                        # Parse language and region from hreflang code (e.g., "en-US" -> language="en", region="US")
+                        lang_parts = hreflang.hreflang.split('-')
+                        language = lang_parts[0] if lang_parts else hreflang.hreflang
+                        region = lang_parts[1] if len(lang_parts) > 1 else None
+
+                        hreflang_record = Hreflang(
+                            crawl_id=self.crawl.id,
+                            source_url_id=url_record.id,
+                            language=language,
+                            region=region,
+                            href=hreflang.href,
+                            source_type=hreflang.source,
+                        )
+                        self.db.add(hreflang_record)
+
+                    # Process structured data
+                    from ..models.crawl import StructuredData
+                    import json
+
+                    for sd in parsed.structured_data:
+                        sd_record = StructuredData(
+                            crawl_id=self.crawl.id,
+                            url_id=url_record.id,
+                            format_type=sd.get('format', 'json-ld'),
+                            schema_type=sd.get('type', 'Unknown'),
+                            raw_data=json.dumps(sd.get('data', {})),
+                            is_valid=True,  # Assume valid if parsed successfully
+                            validation_errors=None,
+                        )
+                        self.db.add(sd_record)
+
                 await self.db.commit()
 
                 if result.status_code == 200:

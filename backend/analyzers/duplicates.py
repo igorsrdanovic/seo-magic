@@ -52,7 +52,7 @@ async def analyze_duplicate_titles(db: AsyncSession, crawl_id: int) -> list[Issu
             URL.crawl_id == crawl_id,
             URL.title_1.isnot(None),
             URL.title_1 != '',
-            URL.indexable == True
+            URL.indexability == "Indexable"
         )
         .group_by(URL.title_1)
         .having(func.count(URL.id) > 1)
@@ -98,7 +98,7 @@ async def analyze_duplicate_meta_descriptions(db: AsyncSession, crawl_id: int) -
             URL.crawl_id == crawl_id,
             URL.meta_description_1.isnot(None),
             URL.meta_description_1 != '',
-            URL.indexable == True
+            URL.indexability == "Indexable"
         )
         .group_by(URL.meta_description_1)
         .having(func.count(URL.id) > 1)
@@ -143,7 +143,7 @@ async def analyze_duplicate_content(db: AsyncSession, crawl_id: int) -> list[Iss
         .where(
             URL.crawl_id == crawl_id,
             URL.content_hash.isnot(None),
-            URL.indexable == True,
+            URL.indexability == "Indexable",
             URL.status_code == 200
         )
         .group_by(URL.content_hash)
@@ -211,7 +211,7 @@ async def analyze_duplicate_html(db: AsyncSession, crawl_id: int) -> list[Issue]
         urls = urls_result.scalars().all()
 
         # Only report if indexable (exact HTML duplicates are common for non-indexable pages)
-        indexable_urls = [u for u in urls if u.indexable]
+        indexable_urls = [u for u in urls if u.indexability == "Indexable"]
         if len(indexable_urls) > 1:
             for url in indexable_urls:
                 # Find the other URLs with the same HTML
