@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from ..database import get_db
 from ..models.crawl import Issue, URL, Crawl, Image
 from ..config import DEFAULT_THRESHOLDS
-from ..analyzers import titles, meta, headings, images, links, canonicals, redirects
+from ..analyzers import titles, meta, headings, images, links, canonicals, redirects, duplicates, hreflangs, structured_data, sitemap
 
 router = APIRouter(prefix="/api/crawls/{crawl_id}/issues", tags=["issues"])
 
@@ -157,6 +157,26 @@ async def analyze_crawl(crawl_id: int, background_tasks: BackgroundTasks, db: As
             # Run redirect analysis
             redirect_issues = await redirects.analyze_redirects(session, crawl_id)
             for issue in redirect_issues:
+                session.add(issue)
+
+            # Run duplicate content analysis
+            duplicate_issues = await duplicates.analyze_duplicates(session, crawl_id)
+            for issue in duplicate_issues:
+                session.add(issue)
+
+            # Run hreflang analysis
+            hreflang_issues = await hreflangs.analyze_hreflangs(session, crawl_id)
+            for issue in hreflang_issues:
+                session.add(issue)
+
+            # Run structured data analysis
+            sd_issues = await structured_data.analyze_structured_data(session, crawl_id)
+            for issue in sd_issues:
+                session.add(issue)
+
+            # Run sitemap analysis
+            sitemap_issues = await sitemap.analyze_sitemap(session, crawl_id)
+            for issue in sitemap_issues:
                 session.add(issue)
 
             await session.commit()
